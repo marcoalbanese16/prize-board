@@ -1,4 +1,10 @@
-import { BOARD_THEMES, isBoardTheme, type BoardTheme } from "@/lib/board-themes";
+import {
+  BOARD_THEMES,
+  isBoardMode,
+  isBoardTheme,
+  type BoardMode,
+  type BoardTheme,
+} from "@/lib/board-themes";
 
 // A board has no server behind it: everything lives in the link's #fragment
 // (which browsers never send to any server), compressed and base64url-encoded.
@@ -9,6 +15,7 @@ export type BoardData = {
   title: string;
   date: string | null;
   theme: BoardTheme;
+  mode: BoardMode;
   accent: string;
   showList: boolean;
   winners: Winner[];
@@ -18,6 +25,8 @@ type Wire = {
   t: string;
   d?: string;
   th: string;
+  /** "dark"; omitted for light so older and lighter links stay short. */
+  m?: BoardMode;
   a: string;
   l: 0 | 1;
   w: [string, string][];
@@ -56,6 +65,7 @@ export async function encodeBoard(board: BoardData): Promise<string> {
     t: board.title,
     ...(board.date ? { d: board.date } : {}),
     th: board.theme,
+    ...(board.mode === "dark" ? { m: "dark" as const } : {}),
     a: board.accent,
     l: board.showList ? 1 : 0,
     w: board.winners.map((w) => [w.ticket, w.prize]),
@@ -93,6 +103,7 @@ export async function decodeBoard(encoded: string): Promise<BoardData | null> {
       title: wire.t,
       date: typeof wire.d === "string" ? wire.d : null,
       theme: isBoardTheme(wire.th) ? wire.th : "carnival",
+      mode: isBoardMode(wire.m) ? wire.m : "light",
       accent: HEX.test(wire.a) ? wire.a : BOARD_THEMES[0].defaultAccent,
       showList: wire.l !== 0,
       winners,

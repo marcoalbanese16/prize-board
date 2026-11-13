@@ -37,21 +37,21 @@ export default function BoardPage() {
   // Until the first decode finishes (or while the hash is changing) show nothing
   // rather than flashing the "broken link" message.
   if (!result || result.hash !== hash) {
-    return <main className="min-h-screen bg-neutral-950" />;
+    return <main className="min-h-screen bg-neutral-50" />;
   }
 
   if (!result.board) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-neutral-950 px-6 text-center text-white">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-neutral-50 px-6 text-center text-neutral-900">
         <p className="text-5xl">🎟️</p>
         <h1 className="text-xl font-bold">This board link is incomplete</h1>
-        <p className="max-w-sm text-sm text-neutral-400">
+        <p className="max-w-sm text-sm text-neutral-500">
           The link may have been cut off when it was copied or shared. Ask the
           host for the full link or QR code.
         </p>
         <Link
           href="/"
-          className="mt-3 rounded-lg border border-neutral-700 px-4 py-2 text-sm font-medium text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+          className="mt-3 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100"
         >
           Make your own board
         </Link>

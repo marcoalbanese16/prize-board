@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { QRCodeSVG } from "qrcode.react";
 import { encodeBoard, type BoardData } from "@/lib/board-data";
 import { BASE_PATH, boardUrl } from "@/lib/base-path";
-import { isBoardTheme } from "@/lib/board-themes";
+import { isBoardMode, isBoardTheme } from "@/lib/board-themes";
 import {
   padTicketNumbers,
   parseWinners,
@@ -27,6 +27,7 @@ const inputClass =
 const DRAFT_KEY = "prize-board-draft";
 const DEFAULT_STYLE: Style = {
   theme: "carnival",
+  mode: "light",
   accent: "#fbbf24",
   showList: true,
 };
@@ -59,6 +60,7 @@ function loadDraft(): Draft {
       sheetUrl: typeof d.sheetUrl === "string" ? d.sheetUrl : "",
       style: {
         theme: isBoardTheme(d.style?.theme) ? d.style.theme : DEFAULT_STYLE.theme,
+        mode: isBoardMode(d.style?.mode) ? d.style.mode : DEFAULT_STYLE.mode,
         accent: /^#[0-9a-f]{6}$/i.test(d.style?.accent)
           ? d.style.accent
           : DEFAULT_STYLE.accent,
@@ -110,6 +112,7 @@ function BuilderForm() {
       title: title.trim(),
       date: date || null,
       theme: style.theme,
+      mode: style.mode,
       accent: style.accent,
       showList: style.showList,
       winners,

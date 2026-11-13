@@ -35,6 +35,7 @@ export default function Board({ board }: { board: BoardData }) {
 
   return (
     <ThemeComponent
+      mode={board.mode}
       title={board.title}
       eventDate={board.date}
       accent={board.accent}

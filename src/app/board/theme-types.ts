@@ -1,3 +1,5 @@
+import type { BoardMode } from "@/lib/board-themes";
+
 export type Prize = {
   id: string;
   ticket_number: string;
@@ -5,6 +7,7 @@ export type Prize = {
 };
 
 export type ThemeProps = {
+  mode: BoardMode;
   title: string;
   eventDate: string | null;
   accent: string;
