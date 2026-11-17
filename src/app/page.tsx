@@ -302,127 +302,11 @@ function BuilderForm() {
           </div>
         </div>
       </section>
-
-      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-1 text-lg font-semibold text-neutral-900">
-          2. Winners
-        </h2>
-        <p className="mb-4 text-sm text-neutral-500">
-          Each winner needs a ticket number and a prize. Bring them in from
-          Google Sheets, a CSV file, or type them in.
-        </p>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!importing) handleSheetImport();
-          }}
-          className="mb-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4"
-        >
-          <label className="mb-1.5 block text-xs font-medium text-neutral-700">
-            Import from Google Sheets
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <input
-              value={sheetUrl}
-              onChange={(e) => setSheetUrl(e.target.value)}
-              placeholder="Paste your Google Sheets link"
-              className={`${inputClass} min-w-56 flex-1`}
-              spellCheck={false}
-              autoComplete="off"
-            />
-            <button
-              type="submit"
-              disabled={importing || !sheetUrl.trim()}
-              className="rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:opacity-50"
-            >
-              {importing ? "Importing…" : "Import"}
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-neutral-500">
-            In Sheets, click <b>Share → General access → “Anyone with the link”
-            → Viewer</b>, then copy the link. Put a header row on top (like{" "}
-            <i>Ticket</i> and <i>Prize</i>); extra columns are ignored.
-          </p>
-        </form>
-
-        {importMessage ? (
-          <p
-            role={importMessage.kind === "error" ? "alert" : "status"}
-            className={`mb-4 rounded-lg px-3 py-2 text-sm ${
-              importMessage.kind === "error"
-                ? "bg-red-50 text-red-800"
-                : "bg-green-50 text-green-800"
-            }`}
-          >
-            {importMessage.text}
-          </p>
-        ) : null}
-
-        <label className="mb-1.5 block text-xs font-medium text-neutral-700">
-          Or paste your winners
-        </label>
-        <textarea
-          value={winnersText}
-          onChange={(e) => setWinnersText(e.target.value)}
-          rows={8}
-          placeholder={
-            "Select the cells in Google Sheets, copy, and paste here.\nOr type one per line:\n0719054, $50 Gift Card\n0383699, Bottle of Wine"
-          }
-          className={`${inputClass} w-full font-mono`}
-        />
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium transition hover:bg-neutral-50"
-          >
-            Upload CSV
-          </button>
-          <a
-            href={`${BASE_PATH}/winners-template.csv`}
-            download
-            className="text-sm font-medium text-neutral-600 underline underline-offset-2 hover:text-neutral-900"
-          >
-            Download template
-          </a>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-              e.target.value = "";
-            }}
-          />
-        </div>
-
-        <WinnersReview
-          parsed={parsed}
-          hasText={winnersText.trim() !== ""}
-          onSwap={() => setWinnersText(winnersToText(winners, true))}
-          onPad={(width) =>
-            setWinnersText(winnersToText(padTicketNumbers(winners, width)))
-          }
-        />
-      </section>
-
-      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-1 text-lg font-semibold text-neutral-900">
-          3. Board style
-        </h2>
-        <p className="mb-4 text-sm text-neutral-500">
-          How the board looks to your guests.
-        </p>
-        <ThemePicker value={style} onChange={setStyle} />
-      </section>
       </fieldset>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
         <h2 className="mb-1 text-lg font-semibold text-neutral-900">
-          4. Share it
+          2. Share it
         </h2>
         <p className="mb-4 text-sm text-neutral-500">
           Posting a QR code before the prizes are drawn? Choose live.
@@ -549,14 +433,7 @@ function BuilderForm() {
               </p>
             ) : !sheetCheck ? (
               <p className="text-sm text-neutral-500">Checking your sheet…</p>
-            ) : sheetCheck.ok ? (
-              <p role="status" className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
-                ✓ Your sheet can be read by anyone with the link.{" "}
-                {sheetCheck.winners === 0
-                  ? "No winners in it yet. That's fine before the draw."
-                  : `${sheetCheck.winners} winner${sheetCheck.winners === 1 ? "" : "s"} in it so far.`}
-              </p>
-            ) : (
+            ) : sheetCheck.ok ? null : (
               <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
                 <span className="min-w-0 flex-1">{sheetCheck.message}</span>
                 <button
@@ -627,7 +504,7 @@ function BuilderForm() {
                   </p>
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
                     <b>Before you print:</b> finish the name, date and style
-                    above. Changing any of them makes a new QR code (only the
+                    first. Changing any of them makes a new QR code (only the
                     winners are live). Then scan it with a phone, add a test row
                     to your sheet, and watch it appear within about a minute.
                     Delete the test row afterwards.
@@ -658,6 +535,129 @@ function BuilderForm() {
           </div>
         )}
       </section>
+
+      <fieldset
+        disabled={locked}
+        className={`m-0 flex min-w-0 flex-col gap-6 border-0 p-0 ${locked ? "opacity-60" : ""}`}
+      >
+      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-lg font-semibold text-neutral-900">
+          3. Board style
+        </h2>
+        <p className="mb-4 text-sm text-neutral-500">
+          How the board looks to your guests.
+        </p>
+        <ThemePicker value={style} onChange={setStyle} />
+      </section>
+
+      {!liveMode ? (
+      <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-1 text-lg font-semibold text-neutral-900">
+          4. Winners
+        </h2>
+        <p className="mb-4 text-sm text-neutral-500">
+          Each winner needs a ticket number and a prize. Bring them in from
+          Google Sheets, a CSV file, or type them in.
+        </p>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!importing) handleSheetImport();
+          }}
+          className="mb-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4"
+        >
+          <label className="mb-1.5 block text-xs font-medium text-neutral-700">
+            Import from Google Sheets
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={sheetUrl}
+              onChange={(e) => setSheetUrl(e.target.value)}
+              placeholder="Paste your Google Sheets link"
+              className={`${inputClass} min-w-56 flex-1`}
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              disabled={importing || !sheetUrl.trim()}
+              className="rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:opacity-50"
+            >
+              {importing ? "Importing…" : "Import"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-neutral-500">
+            In Sheets, click <b>Share → General access → “Anyone with the link”
+            → Viewer</b>, then copy the link. Put a header row on top (like{" "}
+            <i>Ticket</i> and <i>Prize</i>); extra columns are ignored.
+          </p>
+        </form>
+
+        {importMessage ? (
+          <p
+            role={importMessage.kind === "error" ? "alert" : "status"}
+            className={`mb-4 rounded-lg px-3 py-2 text-sm ${
+              importMessage.kind === "error"
+                ? "bg-red-50 text-red-800"
+                : "bg-green-50 text-green-800"
+            }`}
+          >
+            {importMessage.text}
+          </p>
+        ) : null}
+
+        <label className="mb-1.5 block text-xs font-medium text-neutral-700">
+          Or paste your winners
+        </label>
+        <textarea
+          value={winnersText}
+          onChange={(e) => setWinnersText(e.target.value)}
+          rows={8}
+          placeholder={
+            "Select the cells in Google Sheets, copy, and paste here.\nOr type one per line:\n0719054, $50 Gift Card\n0383699, Bottle of Wine"
+          }
+          className={`${inputClass} w-full font-mono`}
+        />
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium transition hover:bg-neutral-50"
+          >
+            Upload CSV
+          </button>
+          <a
+            href={`${BASE_PATH}/winners-template.csv`}
+            download
+            className="text-sm font-medium text-neutral-600 underline underline-offset-2 hover:text-neutral-900"
+          >
+            Download template
+          </a>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+              e.target.value = "";
+            }}
+          />
+        </div>
+
+        <WinnersReview
+          parsed={parsed}
+          hasText={winnersText.trim() !== ""}
+          onSwap={() => setWinnersText(winnersToText(winners, true))}
+          onPad={(width) =>
+            setWinnersText(winnersToText(padTicketNumbers(winners, width)))
+          }
+        />
+      </section>
+      ) : null}
+      </fieldset>
     </>
   );
 }
