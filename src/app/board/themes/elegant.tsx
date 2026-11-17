@@ -11,6 +11,7 @@ const playfair = Playfair_Display({
 
 export default function ElegantTheme({
   mode,
+  live,
   title,
   eventDate,
   accent,
@@ -32,7 +33,7 @@ export default function ElegantTheme({
             className="mb-4 text-[10px] font-semibold uppercase tracking-[0.35em]"
             style={{ color: "var(--accent-ink)" }}
           >
-            Prize winners
+            {live ? "Live results" : "Prize winners"}
           </p>
           <h1 className="font-elegant text-balance text-4xl italic leading-tight text-[#1f1b16] sm:text-5xl dark:text-white">
             {title}
@@ -99,7 +100,9 @@ export default function ElegantTheme({
                     No match for &ldquo;{query}&rdquo;
                   </p>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Double-check the number on your ticket.
+                    {live
+                      ? "Winners are still being drawn. Check back soon."
+                      : "Double-check the number on your ticket."}
                   </p>
                 </div>
               )

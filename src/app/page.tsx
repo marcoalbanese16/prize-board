@@ -11,7 +11,8 @@ import {
   winnersToText,
 } from "@/lib/parse-winners";
 import { readFileText } from "@/lib/read-file";
-import { fetchSheet } from "@/lib/sheets";
+import { buildBoard } from "@/lib/build-board";
+import { fetchSheet, fetchSheetRef, parseSheetUrl, sheetKey } from "@/lib/sheets";
 import ThemePicker, { type Style } from "./theme-picker";
 import WinnersReview from "./winners-review";
 
@@ -37,6 +38,8 @@ type Draft = {
   date: string;
   winnersText: string;
   sheetUrl: string;
+  /** Live board: guests read the winners from the sheet, so the QR never changes. */
+  liveMode: boolean;
   style: Style;
 };
 
@@ -45,6 +48,7 @@ const EMPTY_DRAFT: Draft = {
   date: "",
   winnersText: "",
   sheetUrl: "",
+  liveMode: false,
   style: DEFAULT_STYLE,
 };
 
@@ -58,6 +62,7 @@ function loadDraft(): Draft {
       date: typeof d.date === "string" ? d.date : "",
       winnersText: typeof d.winnersText === "string" ? d.winnersText : "",
       sheetUrl: typeof d.sheetUrl === "string" ? d.sheetUrl : "",
+      liveMode: d.liveMode === true,
       style: {
         theme: isBoardTheme(d.style?.theme) ? d.style.theme : DEFAULT_STYLE.theme,
         mode: isBoardMode(d.style?.mode) ? d.style.mode : DEFAULT_STYLE.mode,
@@ -84,6 +89,8 @@ function BuilderForm() {
   const [winnersText, setWinnersText] = useState(initial.winnersText);
   const [style, setStyle] = useState<Style>(initial.style);
   const [sheetUrl, setSheetUrl] = useState(initial.sheetUrl);
+  const [liveMode, setLiveMode] = useState(initial.liveMode);
+  const [checkAttempt, setCheckAttempt] = useState(0);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{
     kind: "ok" | "error";
@@ -96,28 +103,70 @@ function BuilderForm() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ title, date, winnersText, sheetUrl, style })
+        JSON.stringify({ title, date, winnersText, sheetUrl, liveMode, style })
       );
     } catch {
       // Storage can be unavailable (private mode, quota); the form still works.
     }
-  }, [title, date, winnersText, sheetUrl, style]);
+  }, [title, date, winnersText, sheetUrl, liveMode, style]);
 
   const parsed = useMemo(() => parseWinners(winnersText), [winnersText]);
   const winners = parsed.winners;
 
-  const board = useMemo<BoardData | null>(() => {
-    if (!title.trim() || winners.length === 0) return null;
-    return {
-      title: title.trim(),
-      date: date || null,
-      theme: style.theme,
-      mode: style.mode,
-      accent: style.accent,
-      showList: style.showList,
-      winners,
+  // The sheet a live board would read, when the link in the box is a valid one.
+  const sheetRef = useMemo(() => {
+    const result = parseSheetUrl(sheetUrl);
+    return result.ok ? result.ref : null;
+  }, [sheetUrl]);
+  const sheetLinkProblem = useMemo(() => {
+    if (!sheetUrl.trim()) return null;
+    const result = parseSheetUrl(sheetUrl);
+    return result.ok ? null : result.message;
+  }, [sheetUrl]);
+  const liveKey = liveMode && sheetRef ? `${sheetKey(sheetRef)}#${checkAttempt}` : null;
+
+  // Before a QR code is printed and posted around a hall, prove the sheet can
+  // actually be read by an anonymous visitor. Results are tagged with the sheet
+  // they belong to so an old answer is never shown for a new link.
+  type SheetCheck =
+    | { ok: true; winners: number }
+    | { ok: false; message: string };
+  const [check, setCheck] = useState<{ key: string; result: SheetCheck } | null>(null);
+  useEffect(() => {
+    if (!liveKey || !sheetRef) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const result = await fetchSheetRef(sheetRef, { allowEmpty: true });
+      if (cancelled) return;
+      setCheck({
+        key: liveKey,
+        result: result.ok
+          ? { ok: true, winners: parseWinners(result.text).winners.length }
+          : { ok: false, message: result.message },
+      });
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
     };
-  }, [title, date, style, winners]);
+  }, [liveKey, sheetRef]);
+  const sheetCheck = liveKey && check?.key === liveKey ? check.result : null;
+
+  const board = useMemo<BoardData | null>(
+    () =>
+      buildBoard({
+        title,
+        date,
+        theme: style.theme,
+        mode: style.mode,
+        accent: style.accent,
+        showList: style.showList,
+        winners,
+        liveMode,
+        sheetRef,
+      }),
+    [title, date, style, winners, liveMode, sheetRef]
+  );
 
   // Encoding is async (compression), so tag the result with the board it was
   // made for and only show it while it still matches.
@@ -138,6 +187,8 @@ function BuilderForm() {
 
   const url =
     board && encoded?.for === board ? boardUrl(encoded.value) : null;
+  // A live QR code is only offered once the sheet is confirmed readable.
+  const showShare = url && (!liveMode || sheetCheck?.ok === true);
 
   // Replacing a list someone has already worked on needs a confirmation.
   function replaceWinners(text: string) {
@@ -197,6 +248,7 @@ function BuilderForm() {
     setDate("");
     setWinnersText("");
     setSheetUrl("");
+    setLiveMode(false);
     setImportMessage(null);
     setStyle(DEFAULT_STYLE);
   }
@@ -359,15 +411,133 @@ function BuilderForm() {
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-neutral-900">
+        <h2 className="mb-1 text-lg font-semibold text-neutral-900">
           4. Share it
         </h2>
+        <p className="mb-4 text-sm text-neutral-500">
+          Posting a QR code before the prizes are drawn? Choose live.
+        </p>
+
+        <div
+          role="radiogroup"
+          aria-label="How results reach your guests"
+          className="mb-5 grid gap-3 sm:grid-cols-2"
+        >
+          {[
+            {
+              live: true,
+              title: "Live from my Google Sheet",
+              badge: "QR code never changes",
+              body: "Print the QR code before the draw. Add winners to your sheet as they're drawn and every guest's board updates within about a minute.",
+            },
+            {
+              live: false,
+              title: "Final results",
+              badge: null,
+              body: "The winners are saved inside the link. Best once the draw is over. Adding a winner later means a new link and a new QR code.",
+            },
+          ].map((option) => {
+            const selected = liveMode === option.live;
+            return (
+              <button
+                key={option.title}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setLiveMode(option.live)}
+                className={`flex flex-col gap-1.5 rounded-xl border-2 p-4 text-left transition ${
+                  selected
+                    ? "border-neutral-900 bg-neutral-50"
+                    : "border-neutral-200 hover:border-neutral-300"
+                }`}
+              >
+                <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-neutral-900">
+                  {option.title}
+                  {option.badge ? (
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800">
+                      {option.badge}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="text-xs leading-relaxed text-neutral-500">
+                  {option.body}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {liveMode ? (
+          <div className="mb-5 flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">
+                Your live results sheet
+              </label>
+              <input
+                value={sheetUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                placeholder="Paste your Google Sheets link"
+                className={`${inputClass} w-full`}
+                spellCheck={false}
+                autoComplete="off"
+              />
+            </div>
+            <ol className="list-decimal space-y-1 pl-5 text-xs leading-relaxed text-neutral-600">
+              <li>
+                In Sheets, put <b>Ticket</b> and <b>Prize</b> in row 1. It can
+                stay empty below that until the draw starts.
+              </li>
+              <li>
+                Click <b>Share → General access → “Anyone with the link” →
+                Viewer</b>, then paste the link above.
+              </li>
+              <li>
+                Print the QR code. As each prize is drawn, add a row to the
+                sheet.
+              </li>
+            </ol>
+
+            {!sheetUrl.trim() ? null : sheetLinkProblem ? (
+              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+                {sheetLinkProblem}
+              </p>
+            ) : !sheetCheck ? (
+              <p className="text-sm text-neutral-500">Checking your sheet…</p>
+            ) : sheetCheck.ok ? (
+              <p role="status" className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+                ✓ Your sheet can be read by anyone with the link.{" "}
+                {sheetCheck.winners === 0
+                  ? "No winners in it yet. That's fine before the draw."
+                  : `${sheetCheck.winners} winner${sheetCheck.winners === 1 ? "" : "s"} in it so far.`}
+              </p>
+            ) : (
+              <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+                <span className="min-w-0 flex-1">{sheetCheck.message}</span>
+                <button
+                  type="button"
+                  onClick={() => setCheckAttempt((n) => n + 1)}
+                  className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-100"
+                >
+                  Check again
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {!board ? (
           <p className="text-sm text-neutral-500">
-            Add an event name and at least one winner to get your link.
+            {liveMode
+              ? "Add an event name and your Google Sheet link to get your QR code."
+              : "Add an event name and at least one winner to get your link."}
           </p>
         ) : !url ? (
           <p className="text-sm text-neutral-500">Building your link…</p>
+        ) : !showShare ? (
+          <p className="text-sm text-neutral-500">
+            Your QR code appears here once your sheet checks out, so you never
+            print one that doesn&apos;t work.
+          </p>
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             {url.length <= QR_MAX_CHARS ? (
@@ -400,23 +570,44 @@ function BuilderForm() {
                   Open ↗
                 </a>
               </div>
-              <p className="text-xs text-neutral-500">
-                {winners.length} winner{winners.length === 1 ? "" : "s"} ·{" "}
-                {url.length.toLocaleString()} characters. The link contains
-                your whole board, so anyone with it can see it and nothing is
-                stored on a server. To change a board, make a new link.
-              </p>
-              {url.length > QR_MAX_CHARS ? (
-                <p className="text-xs text-amber-700">
-                  This board is too big to fit in a QR code. Share the link
-                  instead, or split the winners across two boards.
-                </p>
-              ) : url.length > QR_DENSE_CHARS ? (
-                <p className="text-xs text-amber-700">
-                  Big boards make a dense QR code. Scan it with a phone before
-                  you print it.
-                </p>
-              ) : null}
+
+              {liveMode ? (
+                <>
+                  <p className="text-xs text-neutral-500">
+                    Live board · {url.length.toLocaleString()} characters. Winners
+                    are read from your sheet each time someone opens or searches
+                    the board, so <b>this QR code stays valid as you add
+                    winners</b>.
+                  </p>
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                    <b>Before you print:</b> finish the name, date and style
+                    above. Changing any of them makes a new QR code (only the
+                    winners are live). Then scan it with a phone, add a test row
+                    to your sheet, and watch it appear within about a minute.
+                    Delete the test row afterwards.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-neutral-500">
+                    {winners.length} winner{winners.length === 1 ? "" : "s"} ·{" "}
+                    {url.length.toLocaleString()} characters. The link contains
+                    your whole board, so anyone with it can see it and nothing
+                    is stored on a server. To change a board, make a new link.
+                  </p>
+                  {url.length > QR_MAX_CHARS ? (
+                    <p className="text-xs text-amber-700">
+                      This board is too big to fit in a QR code. Share the link
+                      instead, or split the winners across two boards.
+                    </p>
+                  ) : url.length > QR_DENSE_CHARS ? (
+                    <p className="text-xs text-amber-700">
+                      Big boards make a dense QR code. Scan it with a phone
+                      before you print it.
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
         )}

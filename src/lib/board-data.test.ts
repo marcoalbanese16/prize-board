@@ -8,6 +8,7 @@ const board = (overrides: Partial<BoardData> = {}): BoardData => ({
   mode: "light",
   accent: "#ec4899",
   showList: false,
+  sheet: null,
   winners: [
     { ticket: "0719054", prize: "$50 Gift Card" },
     { ticket: "2370279", prize: "Spa Day, Deluxe 🎁 Café" },
@@ -99,5 +100,62 @@ describe("broken links", () => {
   it("rejects a payload missing the title or winners", async () => {
     expect(await decodeBoard(await encodeRaw({ th: "classic" }))).toBeNull();
     expect(await decodeBoard(await encodeRaw({ t: "x", w: "nope" }))).toBeNull();
+  });
+});
+
+describe('live boards (QR code stays the same)', () => {
+  const SHEET = { kind: 'sheet', id: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', gid: null } as const;
+  const live = (overrides: Partial<BoardData> = {}) => board({ sheet: SHEET, winners: [], ...overrides });
+
+  it('round-trips the sheet reference, with and without a tab', async () => {
+    expect((await decodeBoard(await encodeBoard(live())))?.sheet).toEqual(SHEET);
+    const tab = { ...SHEET, gid: '1234' };
+    expect((await decodeBoard(await encodeBoard(live({ sheet: tab }))))?.sheet).toEqual(tab);
+  });
+
+  it('round-trips a published-to-web sheet', async () => {
+    const pub = { kind: 'published', pubId: '2PACX-1vAbC_dEf-ghijk', gid: '7' } as const;
+    expect((await decodeBoard(await encodeBoard(live({ sheet: pub }))))?.sheet).toEqual(pub);
+  });
+
+  it('produces the identical link every time for the same settings', async () => {
+    expect(await encodeBoard(live())).toBe(await encodeBoard(live()));
+  });
+
+  it('never puts winners in a live link, so adding winners cannot change the QR code', async () => {
+    const empty = await encodeBoard(live({ winners: [] }));
+    const many = await encodeBoard(
+      live({ winners: Array.from({ length: 500 }, (_, i) => ({ ticket: String(i), prize: 'P' + i })) })
+    );
+    expect(many).toBe(empty);
+    expect((await decodeBoard(many))?.winners).toEqual([]);
+  });
+
+  it('changes the link when the title or style changes (so reprint after styling)', async () => {
+    const base = await encodeBoard(live());
+    expect(await encodeBoard(live({ title: 'Different' }))).not.toBe(base);
+    expect(await encodeBoard(live({ mode: 'dark' }))).not.toBe(base);
+  });
+
+  it('is much shorter than a snapshot link, so the QR code is simpler to scan', async () => {
+    const winners = Array.from({ length: 100 }, (_, i) => ({ ticket: String(1000000 + i * 37), prize: 'Prize number ' + i }));
+    const snapshot = await encodeBoard(board({ winners }));
+    const liveLink = await encodeBoard(live());
+    expect(liveLink.length).toBeLessThan(snapshot.length / 3);
+    expect(liveLink.length).toBeLessThan(400);
+  });
+
+  it('snapshot boards have no sheet', async () => {
+    expect((await decodeBoard(await encodeBoard(board())))?.sheet).toBeNull();
+  });
+
+  it.each([
+    ['not an array', 'nope'],
+    ['unknown kind', ['x', '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms']],
+    ['id too short', ['s', 'abc']],
+    ['id with unsafe characters', ['s', '1BxiMVs0XRA5nFMd/../evil?x=1']],
+    ['non-numeric tab', ['s', '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', 'abc']],
+  ])('treats a damaged sheet reference (%s) as a broken link', async (_name, sh) => {
+    expect(await decodeBoard(await encodeRaw({ t: 'x', th: 'classic', a: '#38bdf8', l: 1, w: [], sh }))).toBeNull();
   });
 });

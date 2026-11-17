@@ -5,6 +5,7 @@ import {
   type BoardMode,
   type BoardTheme,
 } from "@/lib/board-themes";
+import type { SheetRef } from "@/lib/sheets";
 
 // A board has no server behind it: everything lives in the link's #fragment
 // (which browsers never send to any server), compressed and base64url-encoded.
@@ -18,6 +19,13 @@ export type BoardData = {
   mode: BoardMode;
   accent: string;
   showList: boolean;
+  /**
+   * When set, this is a live board: guests' browsers read the winners from this
+   * Google Sheet. The link then holds only the sheet reference (never the
+   * winners), so it stays identical, and a printed QR code stays valid, no
+   * matter how many winners are added later.
+   */
+  sheet: SheetRef | null;
   winners: Winner[];
 };
 
@@ -29,6 +37,8 @@ type Wire = {
   m?: BoardMode;
   a: string;
   l: 0 | 1;
+  /** Live sheet: ["s" | "p", id-or-pubId, gid?]. */
+  sh?: ["s" | "p", string, string?];
   w: [string, string][];
 };
 
@@ -59,6 +69,29 @@ const canCompress =
   typeof CompressionStream !== "undefined" &&
   typeof DecompressionStream !== "undefined";
 
+const SHEET_ID = /^[\w-]{10,200}$/;
+const GID = /^\d{1,20}$/;
+
+function sheetToWire(sheet: SheetRef): NonNullable<Wire["sh"]> {
+  const kind = sheet.kind === "published" ? "p" : "s";
+  const id = sheet.kind === "published" ? sheet.pubId : sheet.id;
+  return sheet.gid ? [kind, id, sheet.gid] : [kind, id];
+}
+
+/** Returns undefined for "no sheet", null for a malformed one. */
+function sheetFromWire(raw: unknown): SheetRef | null | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return null;
+  const [kind, id, gid] = raw;
+  if (kind !== "s" && kind !== "p") return null;
+  if (typeof id !== "string" || !SHEET_ID.test(id)) return null;
+  if (gid !== undefined && !(typeof gid === "string" && GID.test(gid))) return null;
+  const tab = gid ?? null;
+  return kind === "p"
+    ? { kind: "published", pubId: id, gid: tab }
+    : { kind: "sheet", id, gid: tab };
+}
+
 // "z" = deflate-compressed, "p" = plain (browsers without CompressionStream).
 export async function encodeBoard(board: BoardData): Promise<string> {
   const wire: Wire = {
@@ -68,7 +101,9 @@ export async function encodeBoard(board: BoardData): Promise<string> {
     ...(board.mode === "dark" ? { m: "dark" as const } : {}),
     a: board.accent,
     l: board.showList ? 1 : 0,
-    w: board.winners.map((w) => [w.ticket, w.prize]),
+    ...(board.sheet ? { sh: sheetToWire(board.sheet) } : {}),
+    // A live board's winners come from the sheet, so they never go in the link.
+    w: board.sheet ? [] : board.winners.map((w) => [w.ticket, w.prize]),
   };
   const raw = new TextEncoder().encode(JSON.stringify(wire));
   if (!canCompress) return "p" + toBase64Url(raw);
@@ -99,6 +134,11 @@ export async function decodeBoard(encoded: string): Promise<BoardData | null> {
       }
     }
 
+    const sheet = sheetFromWire(wire.sh);
+    // A live link whose sheet reference is damaged can never work; call it
+    // broken rather than showing a board that is silently empty.
+    if (sheet === null) return null;
+
     return {
       title: wire.t,
       date: typeof wire.d === "string" ? wire.d : null,
@@ -106,6 +146,7 @@ export async function decodeBoard(encoded: string): Promise<BoardData | null> {
       mode: isBoardMode(wire.m) ? wire.m : "light",
       accent: HEX.test(wire.a) ? wire.a : BOARD_THEMES[0].defaultAccent,
       showList: wire.l !== 0,
+      sheet: sheet ?? null,
       winners,
     };
   } catch {

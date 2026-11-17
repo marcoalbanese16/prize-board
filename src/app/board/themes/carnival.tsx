@@ -11,6 +11,7 @@ const baloo = Baloo_2({
 
 export default function CarnivalTheme({
   mode,
+  live,
   title,
   eventDate,
   accent,
@@ -56,7 +57,7 @@ export default function CarnivalTheme({
 
         <div className="relative mx-auto flex max-w-lg flex-col items-center text-center">
           <span className="mb-3 inline-flex items-center rounded-full border border-white/50 bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white dark:border-white/20 dark:bg-white/5 dark:text-neutral-300">
-            Prize winners
+            {live ? "Live results" : "Prize winners"}
           </span>
           <h1 className="font-carnival text-balance text-4xl font-extrabold leading-tight text-white drop-shadow-[0_3px_0_rgba(127,29,29,0.55)] sm:text-5xl dark:text-[var(--accent-ink)] dark:drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]">
             {title}
@@ -173,7 +174,9 @@ export default function CarnivalTheme({
                     No match for &ldquo;{query}&rdquo;
                   </p>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Double-check the number on your ticket.
+                    {live
+                      ? "Winners are still being drawn. Check back soon."
+                      : "Double-check the number on your ticket."}
                   </p>
                 </div>
               )

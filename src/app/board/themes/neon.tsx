@@ -11,6 +11,7 @@ const russo = Russo_One({
 
 export default function NeonTheme({
   mode,
+  live,
   title,
   eventDate,
   accent,
@@ -43,7 +44,7 @@ export default function NeonTheme({
               boxShadow: "0 0 14px -2px var(--accent-glow)",
             }}
           >
-            Prize winners
+            {live ? "Live results" : "Prize winners"}
           </span>
           <h1
             className="font-neon text-balance text-4xl uppercase leading-tight text-neutral-900 sm:text-5xl dark:text-[var(--accent-ink)]"
@@ -132,7 +133,9 @@ export default function NeonTheme({
                     No match for &ldquo;{query}&rdquo;
                   </p>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Double-check the number on your ticket.
+                    {live
+                      ? "Winners are still being drawn. Check back soon."
+                      : "Double-check the number on your ticket."}
                   </p>
                 </div>
               )

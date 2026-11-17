@@ -4,6 +4,7 @@ import { formatEventDate, type ThemeProps } from "../theme-types";
 
 export default function ClassicTheme({
   mode,
+  live,
   title,
   eventDate,
   accent,
@@ -22,7 +23,7 @@ export default function ClassicTheme({
       <div className="mx-auto max-w-lg">
         <div className="mb-8 flex flex-col items-center text-center">
           <span className="mb-3 inline-flex items-center rounded-full bg-neutral-200 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-            Prize winners
+            {live ? "Live results" : "Prize winners"}
           </span>
           <h1 className="text-balance text-3xl font-bold leading-tight text-neutral-900 dark:text-white">
             {title}
@@ -98,7 +99,9 @@ export default function ClassicTheme({
                     No match for &ldquo;{query}&rdquo;
                   </p>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Double-check the number on your ticket.
+                    {live
+                      ? "Winners are still being drawn. Check back soon."
+                      : "Double-check the number on your ticket."}
                   </p>
                 </div>
               )

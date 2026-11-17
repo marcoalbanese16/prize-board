@@ -61,9 +61,25 @@ it. The board page needs no saving: everything it shows comes from the link.
 The search matches the **whole** ticket number, so typing part of a number never
 shows a false winner. A ticket that won twice shows both prizes.
 
+### Live boards (QR code that never changes)
+
+To post a QR code before the prizes are drawn, choose **Live from my Google
+Sheet**. The link then holds only a reference to your sheet plus the style, not
+the winners, so the QR code stays the same as you add rows.
+
+- Put `Ticket` and `Prize` in row 1 and set sharing to **Anyone with the link →
+  Viewer**. The builder checks this before it shows a QR code.
+- Guests' browsers re-read the sheet about every 45 seconds (with backoff on
+  errors, paused in hidden tabs) and again when a search finds no match. New
+  winners show up within about a minute. If a refresh fails, guests keep seeing
+  the last results with a notice.
+- Changing the name, date or style makes a new QR code. Only winners are live.
+- Google can rate-limit very busy sheets. Before printing, scan the QR with a
+  phone, add a test row, and watch it appear; then delete the row.
+
 ### Limits
 
-- A board is final results. To change one, make a new link.
+- A final-results board is a snapshot. To change one, make a new link.
 - Anyone with the link can see the whole board (the winners are in it).
 - The link grows with the winner count (about 1,200 characters for 100
   winners). QR codes top out around 2,900 characters; past that the builder

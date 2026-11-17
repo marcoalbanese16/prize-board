@@ -73,19 +73,36 @@ export type SheetResult =
   | { ok: true; text: string; firstTab: boolean }
   | { ok: false; message: string };
 
-export async function fetchSheet(input: string): Promise<SheetResult> {
-  const parsed = parseSheetUrl(input);
-  if (!parsed.ok) return parsed;
+/** A stable key for a sheet + tab, e.g. for caching its last results. */
+export function sheetKey(ref: SheetRef): string {
+  return ref.kind === "published"
+    ? `p:${ref.pubId}:${ref.gid ?? ""}`
+    : `s:${ref.id}:${ref.gid ?? ""}`;
+}
 
+export type FetchOptions = {
+  /**
+   * An empty sheet is fine (a live board starts with no winners). Importing a
+   * list into the builder still treats empty as a mistake.
+   */
+  allowEmpty?: boolean;
+};
+
+export async function fetchSheetRef(
+  ref: SheetRef,
+  { allowEmpty = false }: FetchOptions = {}
+): Promise<SheetResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
     let response: Response;
     try {
-      response = await fetch(sheetCsvUrl(parsed.ref), {
+      response = await fetch(sheetCsvUrl(ref), {
         signal: controller.signal,
         credentials: "omit",
+        // Live boards poll this; never let the browser serve an old copy.
+        cache: "no-store",
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -108,6 +125,9 @@ export async function fetchSheet(input: string): Promise<SheetResult> {
     if (response.status === 401 || response.status === 403) {
       return { ok: false, message: `That sheet is private. ${SHARING_HELP}` };
     }
+    if (response.status === 429) {
+      return { ok: false, message: "Google is asking for fewer requests right now. Wait a minute and try again." };
+    }
     if (!response.ok) {
       return { ok: false, message: `Google returned an error (${response.status}). Try again in a minute.` };
     }
@@ -122,11 +142,20 @@ export async function fetchSheet(input: string): Promise<SheetResult> {
     if (text.length > MAX_BYTES) {
       return { ok: false, message: "That sheet is too large to import." };
     }
-    if (!text.trim()) {
+    if (!allowEmpty && !text.trim()) {
       return { ok: false, message: "That sheet (or tab) looks empty." };
     }
-    return { ok: true, text, firstTab: parsed.ref.gid === null };
+    return { ok: true, text, firstTab: ref.gid === null };
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function fetchSheet(
+  input: string,
+  options?: FetchOptions
+): Promise<SheetResult> {
+  const parsed = parseSheetUrl(input);
+  if (!parsed.ok) return parsed;
+  return fetchSheetRef(parsed.ref, options);
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchSheet, parseSheetUrl, sheetCsvUrl } from "@/lib/sheets";
+import { fetchSheet, fetchSheetRef, parseSheetUrl, sheetCsvUrl, sheetKey } from "@/lib/sheets";
 
 const ID = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms";
 
@@ -161,5 +161,48 @@ describe("fetchSheet", () => {
     vi.stubGlobal("fetch", spy);
     expect((await fetchSheet("https://example.com")).ok).toBe(false);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("live-board fetching", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const REF = { kind: "sheet", id: ID, gid: null } as const;
+  const respond = (body: string, status = 200, type = "text/csv; charset=utf-8") =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(body, { status, headers: { "content-type": type } }))
+    );
+
+  it("asks the browser never to serve a cached copy, so polls see new winners", async () => {
+    respond("a,b");
+    await fetchSheetRef(REF);
+    expect(vi.mocked(fetch).mock.calls[0][1]).toMatchObject({ cache: "no-store", credentials: "omit" });
+  });
+
+  it("treats an empty sheet as valid when allowed (a live board before the draw)", async () => {
+    respond("");
+    expect(await fetchSheetRef(REF, { allowEmpty: true })).toEqual({ ok: true, text: "", firstTab: true });
+    respond("  \n");
+    expect((await fetchSheetRef(REF, { allowEmpty: true })).ok).toBe(true);
+  });
+
+  it("still rejects an empty sheet by default (importing a list)", async () => {
+    respond("");
+    const result = await fetchSheetRef(REF);
+    expect(result.ok).toBe(false);
+  });
+
+  it("explains rate limiting", async () => {
+    respond("", 429, "text/html");
+    const result = await fetchSheetRef(REF);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/fewer requests/);
+  });
+
+  it("builds distinct cache keys per sheet and tab", () => {
+    expect(sheetKey({ kind: "sheet", id: "a", gid: null })).not.toBe(sheetKey({ kind: "sheet", id: "a", gid: "3" }));
+    expect(sheetKey({ kind: "sheet", id: "a", gid: null })).not.toBe(sheetKey({ kind: "published", pubId: "a", gid: null }));
+    expect(sheetKey({ kind: "sheet", id: "a", gid: "3" })).toBe(sheetKey({ kind: "sheet", id: "a", gid: "3" }));
   });
 });

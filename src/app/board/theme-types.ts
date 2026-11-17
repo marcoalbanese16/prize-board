@@ -8,6 +8,8 @@ export type Prize = {
 
 export type ThemeProps = {
   mode: BoardMode;
+  /** A live board: results come from a Google Sheet and update by themselves. */
+  live: boolean;
   title: string;
   eventDate: string | null;
   accent: string;
