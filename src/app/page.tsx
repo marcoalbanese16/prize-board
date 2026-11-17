@@ -40,6 +40,8 @@ type Draft = {
   sheetUrl: string;
   /** Live board: guests read the winners from the sheet, so the QR never changes. */
   liveMode: boolean;
+  /** Settings that change the QR code are frozen, so a stray click can't alter it. */
+  locked: boolean;
   style: Style;
 };
 
@@ -49,6 +51,7 @@ const EMPTY_DRAFT: Draft = {
   winnersText: "",
   sheetUrl: "",
   liveMode: false,
+  locked: false,
   style: DEFAULT_STYLE,
 };
 
@@ -63,6 +66,7 @@ function loadDraft(): Draft {
       winnersText: typeof d.winnersText === "string" ? d.winnersText : "",
       sheetUrl: typeof d.sheetUrl === "string" ? d.sheetUrl : "",
       liveMode: d.liveMode === true,
+      locked: d.locked === true,
       style: {
         theme: isBoardTheme(d.style?.theme) ? d.style.theme : DEFAULT_STYLE.theme,
         mode: isBoardMode(d.style?.mode) ? d.style.mode : DEFAULT_STYLE.mode,
@@ -90,6 +94,7 @@ function BuilderForm() {
   const [style, setStyle] = useState<Style>(initial.style);
   const [sheetUrl, setSheetUrl] = useState(initial.sheetUrl);
   const [liveMode, setLiveMode] = useState(initial.liveMode);
+  const [locked, setLocked] = useState(initial.locked);
   const [checkAttempt, setCheckAttempt] = useState(0);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{
@@ -103,12 +108,12 @@ function BuilderForm() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ title, date, winnersText, sheetUrl, liveMode, style })
+        JSON.stringify({ title, date, winnersText, sheetUrl, liveMode, style, locked })
       );
     } catch {
       // Storage can be unavailable (private mode, quota); the form still works.
     }
-  }, [title, date, winnersText, sheetUrl, liveMode, style]);
+  }, [title, date, winnersText, sheetUrl, liveMode, style, locked]);
 
   const parsed = useMemo(() => parseWinners(winnersText), [winnersText]);
   const winners = parsed.winners;
@@ -255,6 +260,10 @@ function BuilderForm() {
 
   return (
     <>
+      <fieldset
+        disabled={locked}
+        className={`m-0 flex min-w-0 flex-col gap-6 border-0 p-0 ${locked ? "opacity-60" : ""}`}
+      >
       <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-neutral-900">
@@ -409,6 +418,7 @@ function BuilderForm() {
         </p>
         <ThemePicker value={style} onChange={setStyle} />
       </section>
+      </fieldset>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
         <h2 className="mb-1 text-lg font-semibold text-neutral-900">
@@ -418,6 +428,41 @@ function BuilderForm() {
           Posting a QR code before the prizes are drawn? Choose live.
         </p>
 
+        <div
+            className={`mb-5 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+              locked
+                ? "border-green-300 bg-green-50"
+                : "border-neutral-200 bg-neutral-50"
+            }`}
+          >
+            <p className="min-w-0 flex-1 text-xs leading-relaxed text-neutral-700">
+              {locked ? (
+                <>
+                  <b>🔒 Locked.</b> The event name, date, style and sheet link
+                  can&apos;t be changed, so your QR code can&apos;t change by
+                  accident.
+                </>
+              ) : (
+                <>
+                  <b>Printing the QR code?</b> Lock the settings first so a stray
+                  click can&apos;t change it.
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setLocked((v) => !v)}
+              aria-pressed={locked}
+              className="shrink-0 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-900 hover:bg-neutral-100"
+            >
+              {locked ? "Unlock settings" : "Lock settings"}
+            </button>
+          </div>
+
+        <fieldset
+          disabled={locked}
+          className={`m-0 min-w-0 border-0 p-0 ${locked ? "opacity-60" : ""}`}
+        >
         <div
           role="radiogroup"
           aria-label="How results reach your guests"
@@ -466,10 +511,11 @@ function BuilderForm() {
             );
           })}
         </div>
+        </fieldset>
 
         {liveMode ? (
           <div className="mb-5 flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-            <div>
+            <fieldset disabled={locked} className={`m-0 min-w-0 border-0 p-0 ${locked ? "opacity-60" : ""}`}>
               <label className="mb-1.5 block text-xs font-medium text-neutral-700">
                 Your live results sheet
               </label>
@@ -481,7 +527,7 @@ function BuilderForm() {
                 spellCheck={false}
                 autoComplete="off"
               />
-            </div>
+            </fieldset>
             <ol className="list-decimal space-y-1 pl-5 text-xs leading-relaxed text-neutral-600">
               <li>
                 In Sheets, put <b>Ticket</b> and <b>Prize</b> in row 1. It can
